@@ -1,0 +1,2022 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Activity,
+  Brain,
+  Heart,
+  ShieldAlert,
+  Bone,
+  Radiation,
+  Droplets,
+  CheckCircle2,
+  AlertTriangle,
+  AlertOctagon,
+  Sliders,
+  Sparkles,
+  Flame,
+  Award,
+  Clock,
+  ChevronRight,
+  Stethoscope,
+  RefreshCw,
+  Eye,
+  Thermometer,
+  Moon,
+  Zap,
+  TrendingUp,
+  Info,
+  Check,
+  X,
+  Radio,
+  UserCheck,
+  Dumbbell,
+  Pill,
+  Sun
+} from 'lucide-react';
+
+// ==========================================
+// MISSION SCENARIO PRESETS & BASELINES
+// ==========================================
+const PERSONAL_BASELINE = {
+  icp: 11.5, // mmHg (Earth/Pre-flight baseline)
+  opticNerveDiameter: 4.8, // mm
+  sleepHours: 7.5, // hrs
+  moodScore: 8.5, // 1-10
+  systolic: 116, // mmHg
+  diastolic: 74, // mmHg
+  heartRate: 58, // bpm (Astronaut athletic baseline)
+  hrv: 72, // ms
+  bmdTScore: 0.2, // T-score
+  urinaryCalcium: 160, // mg/day
+  aredCompliance: 98, // %
+  wbc: 5.8, // x10^3 / uL
+  cortisol: 12.0, // ug/dL
+  bodyTemp: 36.7, // °C
+  glucose: 86, // mg/dL
+  hydration: 96, // %
+  vitaminD: 48, // ng/mL
+  cumRadiation: 42, // mSv
+  dailyRadRate: 0.45, // mSv/day
+};
+
+const SCENARIOS = {
+  nominal: {
+    id: 'nominal',
+    name: 'Nominal Orbit (Sol 45)',
+    sol: 45,
+    phase: 'Lunar Gateway Habitation Phase',
+    commsDelay: '1.3 sec (Earth-Moon L2)',
+    description: 'All physiological systems stabilized within acceptable microgravity adaptation envelopes.',
+    vitals: {
+      icp: 13.2,
+      opticNerveDiameter: 5.1,
+      sleepHours: 7.4,
+      moodScore: 8.4,
+      systolic: 118,
+      diastolic: 75,
+      heartRate: 60,
+      hrv: 68,
+      bmdTScore: -0.1,
+      urinaryCalcium: 185,
+      aredCompliance: 96,
+      wbc: 5.6,
+      cortisol: 13.2,
+      bodyTemp: 36.8,
+      glucose: 89,
+      hydration: 94,
+      vitaminD: 45,
+      cumRadiation: 48.5,
+      dailyRadRate: 0.48,
+    }
+  },
+  radiation: {
+    id: 'radiation',
+    name: 'SPE Radiation Spike (Sol 112)',
+    sol: 112,
+    phase: 'Deep Space Transit (Heliocentric)',
+    commsDelay: '6 min 14 sec (One-Way)',
+    description: 'Class X2.8 Solar Flare detected. Elevated proton flux affecting hematological, immune, and cellular stress markers.',
+    vitals: {
+      icp: 13.8,
+      opticNerveDiameter: 5.2,
+      sleepHours: 6.1,
+      moodScore: 6.5,
+      systolic: 129,
+      diastolic: 83,
+      heartRate: 74,
+      hrv: 49,
+      bmdTScore: -0.3,
+      urinaryCalcium: 210,
+      aredCompliance: 85,
+      wbc: 3.4, // Critical drop
+      cortisol: 24.5, // Spike
+      bodyTemp: 37.4, // Low-grade inflammatory elevation
+      glucose: 108,
+      hydration: 86,
+      vitaminD: 41,
+      cumRadiation: 164.2,
+      dailyRadRate: 4.85, // Critical SPE spike
+    }
+  },
+  sans: {
+    id: 'sans',
+    name: 'Microgravity & SANS Alert (Sol 180)',
+    sol: 180,
+    phase: 'Mars Transit Cruise',
+    commsDelay: '11 min 40 sec (One-Way)',
+    description: 'Cephalad fluid shift causing Spaceflight-Associated Neuro-ocular Syndrome (SANS) and accelerated osteoclastic bone resorption.',
+    vitals: {
+      icp: 19.4, // Critical ICP
+      opticNerveDiameter: 6.4, // Optic disc edema threshold
+      sleepHours: 6.2,
+      moodScore: 7.0,
+      systolic: 134,
+      diastolic: 86,
+      heartRate: 66,
+      hrv: 54,
+      bmdTScore: -1.4, // Bone loss warning
+      urinaryCalcium: 315, // Hypercalciuria renal stone risk
+      aredCompliance: 72,
+      wbc: 5.1,
+      cortisol: 16.8,
+      bodyTemp: 36.9,
+      glucose: 99,
+      hydration: 84,
+      vitaminD: 31,
+      cumRadiation: 198.0,
+      dailyRadRate: 0.65,
+    }
+  },
+  isolation: {
+    id: 'isolation',
+    name: 'Isolation & Circadian Drift (Sol 240)',
+    sol: 240,
+    phase: 'Mars Orbital Approach',
+    commsDelay: '18 min 05 sec (One-Way)',
+    description: 'Chronic confinement, 24.6h circadian desynchrony, and sensory monotony impacting neuro-behavioral readiness and cardiovascular tone.',
+    vitals: {
+      icp: 14.5,
+      opticNerveDiameter: 5.4,
+      sleepHours: 4.6, // Severe sleep deprivation
+      moodScore: 4.2, // Behavioral warning
+      systolic: 142, // Stress hypertension
+      diastolic: 91,
+      heartRate: 79,
+      hrv: 38, // Autonomic fatigue
+      bmdTScore: -0.8,
+      urinaryCalcium: 235,
+      aredCompliance: 78,
+      wbc: 4.3,
+      cortisol: 26.2, // High stress cortisol
+      bodyTemp: 37.1,
+      glucose: 118, // Stress/insulin resistance in microgravity
+      hydration: 88,
+      vitaminD: 34,
+      cumRadiation: 245.5,
+      dailyRadRate: 0.62,
+    }
+  }
+};
+
+// ==========================================
+// 6 PHYSIOLOGICAL SYSTEMS METADATA
+// ==========================================
+const BODY_SYSTEMS = [
+  {
+    id: 'neuro',
+    name: 'Neurological & Ocular (SANS)',
+    shortName: 'Neuro / Ocular',
+    hazard: 'Altered Gravity (Cephalad Fluid Shift) & Confinement',
+    icon: Brain,
+    coords: { x: 150, y: 58 }, // Head hotspot on SVG
+    mechanism: 'Loss of hydrostatic pressure gradient shifts ~2L of fluid toward the head, increasing intracranial pressure (ICP) and compressing the posterior globe (Spaceflight-Associated Neuro-ocular Syndrome), while slam-shifting circadian rhythms.',
+    selfExamTitle: 'Guided Ocular Ultrasound & Cognitive Psychomotor Vigilance Test (PVT)',
+    selfExamSteps: [
+      'Apply sterile acoustic coupling gel to closed upper eyelid using zero-G syringe.',
+      'Position Butterfly iQ+ linear probe transversely to measure Optic Nerve Sheath Diameter (ONSD) 3mm posterior to globe.',
+      'Complete 5-minute NASA Psychomotor Vigilance Task (PVT) on crew tablet to quantify reaction latency.',
+      'Sync wearable actigraphy headband telemetry for REM/Deep sleep staging.'
+    ]
+  },
+  {
+    id: 'cardio',
+    name: 'Cardiovascular & Autonomic',
+    shortName: 'Cardiovascular',
+    hazard: 'Altered Gravity & Baroreceptor Deconditioning',
+    icon: Heart,
+    coords: { x: 162, y: 150 }, // Heart hotspot on SVG
+    mechanism: 'Microgravity unloads arterial baroreceptors, causing central hypovolemia (~10-15% plasma volume contraction), cardiac muscle atrophy, stiffened carotid arteries, and orthostatic intolerance risk upon planetary gravity entry.',
+    selfExamTitle: 'Autonomous Cuffless BP & 12-Lead Holter Bio-Shirt Sync',
+    selfExamSteps: [
+      'Ensure Astroskin/Bio-Monitor smart garment electrodes have optimal skin contact.',
+      'Remain in relaxed neutral microgravity posture for 3 minutes away from airlock ventilation fans.',
+      'Trigger pulse transit time (PTT) optical blood pressure calibration.',
+      'Record 60-second Heart Rate Variability (RMSSD) vagal tone assessment.'
+    ]
+  },
+  {
+    id: 'immune',
+    name: 'Immune & Hematological',
+    shortName: 'Immune / Blood',
+    hazard: 'Space Radiation & Closed-Loop Microbiome Stress',
+    icon: ShieldAlert,
+    coords: { x: 132, y: 168 }, // Spleen/Thymus/Lymphatic hotspot
+    mechanism: 'Galactic Cosmic Rays (GCR) and Solar Particle Events damage hematopoietic stem cells, dysregulate T-cell cytokine profiles, and trigger latent herpesvirus (EBV/CMV/VZV) reactivation alongside elevated salivary cortisol.',
+    selfExamTitle: 'Point-of-Care Microfluidic Finger-Stick & Salivary Cortisol Assay',
+    selfExamSteps: [
+      'Sanitize ring finger and perform capillary puncture with self-retracting micro-lancet.',
+      'Load 15µL capillary blood drop into vertical microfluidic WBC differential cartridge.',
+      'Collect morning passive drool saliva swab for lateral-flow chemiluminescent cortisol reader.',
+      'Scan cartridge QR code into ASTRAL-MED analyzer bay.'
+    ]
+  },
+  {
+    id: 'metabolic',
+    name: 'Metabolic & Endocrine',
+    shortName: 'Metabolic / Renal',
+    hazard: 'Hostile Closed Environment & Subclinical Insulin Resistance',
+    icon: Droplets,
+    coords: { x: 150, y: 215 }, // Abdomen/Pancreas/Renal hotspot
+    mechanism: 'Reduced physical unloading, elevated ambient spacecraft CO2 (3-4 mmHg), and lack of UV-B solar exposure induce subclinical insulin resistance, altered gut microbiota, dehydration, and Vitamin D depletion.',
+    selfExamTitle: 'Continuous Interstitial Glucose & Urine Specific Gravity Scan',
+    selfExamSteps: [
+      'Tap handheld NFC reader over upper-arm Continuous Glucose Monitor (CGM) sensor patch.',
+      'Collect first-void urine sample aliquot from Universal Waste Management System (UWMS) port.',
+      'Insert optical refractometer strip to verify hydration status and urinary pH.',
+      'Verify daily 2000 IU Vitamin D3 micro-encapsulated supplement intake.'
+    ]
+  },
+  {
+    id: 'musculo',
+    name: 'Musculoskeletal & Calcium',
+    shortName: 'Musculoskeletal',
+    hazard: 'Mechanical Unloading in 0G (1.5% Bone Loss/Month)',
+    icon: Bone,
+    coords: { x: 122, y: 315 }, // Femur/Hip hotspot
+    mechanism: 'Absence of gravitational mechanical loading inhibits osteoblast bone formation while accelerating osteoclast resorption, shedding calcium into urine (increasing calcium oxalate kidney stone risk) and atrophying slow-twitch postural fibers.',
+    selfExamTitle: 'Calcaneal Quantitative Ultrasound (QUS) & Urinary Calcium Strip',
+    selfExamSteps: [
+      'Secure foot into heel Quantitative Ultrasound (QUS) densitometer stirrup.',
+      'Measure broadband ultrasound attenuation (BUA) to estimate trabecular BMD T-score.',
+      'Analyze 24-hour pooled urine calcium excretion marker via colorimetric dipstick.',
+      'Sync ARED (Advanced Resistive Exercise Device) force-plate load telemetry.'
+    ]
+  },
+  {
+    id: 'radiation',
+    name: 'Cellular Radiation Dosimetry',
+    shortName: 'Radiation / DNA',
+    hazard: 'Galactic Cosmic Rays (HZE Ions) & Solar Particle Events',
+    icon: Radiation,
+    coords: { x: 185, y: 255 }, // Wrist/Pelvis active dosimeter hotspot
+    mechanism: 'High-energy protons and heavy atomic nuclei (HZE ions) penetrate hull shielding, causing clustered double-strand DNA breaks, oxidative stress reactive oxygen species (ROS), and neuro-inflammation.',
+    selfExamTitle: 'Crew Passive/Active Dosimeter Sync & γ-H2AX Biodosimetry',
+    selfExamSteps: [
+      'Dock personal Crew Active Dosimeter (CAD) into habitat telemetry cradle.',
+      'Cross-check Tissue Equivalent Proportional Counter (TEPC) ambient hull dose rate.',
+      'If daily rate exceeds 1.5 mSv/day, verify storm shelter polyethylene water-wall configuration.',
+      'Administer radioprotective antioxidant countermeasure pack.'
+    ]
+  }
+];
+
+// ==========================================
+// DAILY GAMIFIED COUNTERMEASURES
+// ==========================================
+const INITIAL_TASKS = [
+  {
+    id: 'ared',
+    title: 'ARED Resistive Exercise (Squat / Deadlift / Heel Raise)',
+    category: 'Musculoskeletal',
+    xp: 150,
+    duration: '60 min',
+    completed: true,
+    impactText: '-18% Urinary Calcium loss, +4% HRV'
+  },
+  {
+    id: 'lbnp',
+    title: 'Lower Body Negative Pressure (LBNP) Countermeasure Suit',
+    category: 'Neuro / Ocular',
+    xp: 125,
+    duration: '45 min @ -40 mmHg',
+    completed: false,
+    impactText: '-2.1 mmHg Intracranial Pressure (ICP), relieves Optic Edema'
+  },
+  {
+    id: 't2',
+    title: 'T2 Combined Operational Load Bearing Treadmill',
+    category: 'Cardiovascular',
+    xp: 120,
+    duration: '30 min',
+    completed: true,
+    impactText: 'Stabilizes Baroreceptor sensitivity & Fasting Glucose'
+  },
+  {
+    id: 'sla_light',
+    title: 'Solid-State Lighting Assembly (480nm Blue Circadian Reset)',
+    category: 'Neuro / Behavioral',
+    xp: 80,
+    duration: '20 min Morning Block',
+    completed: false,
+    impactText: '+1.2 hrs REM/Deep Sleep, -3.5 ug/dL Cortisol'
+  },
+  {
+    id: 'nutri',
+    title: 'Bisphosphonate + Vitamin D3 (2000 IU) + Antioxidant Pack',
+    category: 'Radiation / Bone',
+    xp: 90,
+    duration: '5 min',
+    completed: false,
+    impactText: 'Mitigates ROS DNA damage & Osteoclastic resorption'
+  },
+  {
+    id: 'vr_mind',
+    title: 'VR Terrestrial Nature Immersion & Private Psych Sync',
+    category: 'Behavioral Health',
+    xp: 100,
+    duration: '25 min',
+    completed: false,
+    impactText: '+1.8 Mood Readiness, -8 mmHg Systolic BP'
+  }
+];
+
+export default function App() {
+  // State Management
+  const [activeScenario, setActiveScenario] = useState('nominal');
+  const [vitals, setVitals] = useState(SCENARIOS.nominal.vitals);
+  const [selectedSystemId, setSelectedSystemId] = useState('neuro');
+  const [selectedChartMetric, setSelectedChartMetric] = useState('icp_bp');
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [streakSols, setStreakSols] = useState(44);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isExamModalOpen, setIsExamModalOpen] = useState(false);
+  const [examStepProgress, setExamStepProgress] = useState(0);
+  const [lastSyncTime, setLastSyncTime] = useState('14:22:09 UTC');
+  const [notificationBanner, setNotificationBanner] = useState(null);
+
+  // Switch Scenario Handler
+  const handleSelectScenario = (scenarioKey) => {
+    const sc = SCENARIOS[scenarioKey];
+    setActiveScenario(scenarioKey);
+    setVitals({ ...sc.vitals });
+
+    // Automatically select the most affected system to highlight immediate value
+    if (scenarioKey === 'radiation') setSelectedSystemId('radiation');
+    else if (scenarioKey === 'sans') setSelectedSystemId('neuro');
+    else if (scenarioKey === 'isolation') setSelectedSystemId('cardio');
+    else setSelectedSystemId('neuro');
+
+    // Reset some tasks when emergency scenarios trigger so user can test fixing them
+    if (scenarioKey !== 'nominal') {
+      setTasks(prev => prev.map((t, i) => ({ ...t, completed: i === 0 })));
+    }
+  };
+
+  // Toggle Countermeasure Task & Apply Immediate Physiological Improvement
+  const handleToggleTask = (taskId) => {
+    setTasks(prev =>
+      prev.map(task => {
+        if (task.id !== taskId) return task;
+        const nextState = !task.completed;
+
+        // Apply simulated bio-feedback adjustments when astronaut acts on countermeasures
+        const delta = nextState ? 1 : -1;
+        setVitals(v => {
+          const updated = { ...v };
+          if (taskId === 'lbnp') {
+            updated.icp = Number((v.icp - 1.8 * delta).toFixed(1));
+            updated.opticNerveDiameter = Number((v.opticNerveDiameter - 0.3 * delta).toFixed(1));
+          } else if (taskId === 'ared') {
+            updated.urinaryCalcium = Math.round(v.urinaryCalcium - 35 * delta);
+            updated.aredCompliance = Math.min(100, Math.max(50, v.aredCompliance + 12 * delta));
+          } else if (taskId === 't2') {
+            updated.glucose = Math.round(v.glucose - 9 * delta);
+            updated.hrv = Math.round(v.hrv + 6 * delta);
+          } else if (taskId === 'sla_light') {
+            updated.sleepHours = Number(Math.min(9, v.sleepHours + 0.9 * delta).toFixed(1));
+            updated.cortisol = Number((v.cortisol - 2.8 * delta).toFixed(1));
+          } else if (taskId === 'nutri') {
+            updated.wbc = Number((v.wbc + 0.5 * delta).toFixed(1));
+            updated.vitaminD = Math.round(v.vitaminD + 6 * delta);
+          } else if (taskId === 'vr_mind') {
+            updated.moodScore = Number(Math.min(10, v.moodScore + 1.3 * delta).toFixed(1));
+            updated.systolic = Math.round(v.systolic - 7 * delta);
+            updated.heartRate = Math.round(v.heartRate - 4 * delta);
+          }
+          return updated;
+        });
+
+        if (nextState) {
+          setNotificationBanner(`Countermeasure Executed: ${task.title} (${task.impactText})`);
+          setTimeout(() => setNotificationBanner(null), 4000);
+        }
+
+        return { ...task, completed: nextState };
+      })
+    );
+  };
+
+  // Evaluate System Status (Nominal / Caution / Critical)
+  const systemStatuses = useMemo(() => {
+    const getStatus = (sysId) => {
+      if (sysId === 'neuro') {
+        if (vitals.icp >= 18 || vitals.opticNerveDiameter >= 6.0 || vitals.sleepHours < 5.2 || vitals.moodScore < 5.0) return 'CRITICAL';
+        if (vitals.icp >= 15 || vitals.opticNerveDiameter >= 5.5 || vitals.sleepHours < 6.5 || vitals.moodScore < 6.8) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      if (sysId === 'cardio') {
+        if (vitals.systolic >= 140 || vitals.diastolic >= 90 || vitals.hrv < 42) return 'CRITICAL';
+        if (vitals.systolic >= 128 || vitals.heartRate >= 74 || vitals.hrv < 55) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      if (sysId === 'immune') {
+        if (vitals.wbc < 3.8 || vitals.cortisol > 22 || vitals.bodyTemp >= 37.8) return 'CRITICAL';
+        if (vitals.wbc < 4.5 || vitals.cortisol > 16 || vitals.bodyTemp >= 37.3) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      if (sysId === 'metabolic') {
+        if (vitals.glucose >= 120 || vitals.hydration < 80 || vitals.vitaminD < 25) return 'CRITICAL';
+        if (vitals.glucose >= 102 || vitals.hydration < 88 || vitals.vitaminD < 36) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      if (sysId === 'musculo') {
+        if (vitals.bmdTScore <= -1.2 || vitals.urinaryCalcium >= 280) return 'CRITICAL';
+        if (vitals.bmdTScore <= -0.6 || vitals.urinaryCalcium >= 220) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      if (sysId === 'radiation') {
+        if (vitals.dailyRadRate >= 2.0 || vitals.cumRadiation >= 250) return 'CRITICAL';
+        if (vitals.dailyRadRate >= 0.6 || vitals.cumRadiation >= 150) return 'CAUTION';
+        return 'NOMINAL';
+      }
+      return 'NOMINAL';
+    };
+
+    return {
+      neuro: getStatus('neuro'),
+      cardio: getStatus('cardio'),
+      immune: getStatus('immune'),
+      metabolic: getStatus('metabolic'),
+      musculo: getStatus('musculo'),
+      radiation: getStatus('radiation'),
+    };
+  }, [vitals]);
+
+  // Calculate Crew Bio-Readiness Score (0 - 100)
+  const bioReadinessScore = useMemo(() => {
+    let score = 96;
+    Object.values(systemStatuses).forEach(st => {
+      if (st === 'CRITICAL') score -= 14;
+      if (st === 'CAUTION') score -= 6;
+    });
+    const completedCount = tasks.filter(t => t.completed).length;
+    score += completedCount * 1.5;
+    return Math.max(32, Math.min(99, Math.round(score)));
+  }, [systemStatuses, tasks]);
+
+  // Total XP
+  const totalXP = useMemo(() => {
+    const baseXP = 4250;
+    const taskXP = tasks.filter(t => t.completed).reduce((acc, t) => acc + t.xp, 0);
+    return baseXP + taskXP;
+  }, [tasks]);
+
+  // Dynamic Autonomous Countermeasure Prescriptions based on current vitals
+  const prioritizedActions = useMemo(() => {
+    const actions = [];
+
+    if (vitals.dailyRadRate >= 1.5 || vitals.wbc < 4.0) {
+      actions.push({
+        id: 'act-rad',
+        priority: 'IMMEDIATE EMERGENCY',
+        system: 'Radiation / Immune',
+        title: 'Retreat to Polyethylene Water-Wall Storm Shelter & Administer Antioxidant Protocol',
+        detail: `Ambient dose rate (${vitals.dailyRadRate} mSv/day) exceeds safe threshold; WBC count (${vitals.wbc}k/µL) shows acute hematopoietic suppression.`,
+        linkedTaskId: 'nutri',
+        badgeColor: 'bg-red-500/20 text-red-300 border-red-500/50'
+      });
+    }
+
+    if (vitals.icp >= 16.0 || vitals.opticNerveDiameter >= 5.7) {
+      actions.push({
+        id: 'act-sans',
+        priority: 'HIGH PRIORITY',
+        system: 'Neurological / SANS',
+        title: 'Initiate 45-Min Lower Body Negative Pressure (LBNP) @ -40 mmHg',
+        detail: `Elevated Intracranial Pressure (${vitals.icp} mmHg) & Optic Nerve Sheath (${vitals.opticNerveDiameter} mm) indicate cephalad venous engorgement.`,
+        linkedTaskId: 'lbnp',
+        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+      });
+    }
+
+    if (vitals.urinaryCalcium >= 240 || vitals.bmdTScore <= -0.8) {
+      actions.push({
+        id: 'act-bone',
+        priority: 'HIGH PRIORITY',
+        system: 'Musculoskeletal',
+        title: 'Increase ARED Resistive Load +10% & Increase Hydration to 3.2L/day',
+        detail: `Urinary calcium (${vitals.urinaryCalcium} mg/d) & BMD T-Score (${vitals.bmdTScore}) indicate accelerated osteoclastic resorption and renal stone risk.`,
+        linkedTaskId: 'ared',
+        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+      });
+    }
+
+    if (vitals.sleepHours < 6.0 || vitals.moodScore < 6.0 || vitals.cortisol > 18) {
+      actions.push({
+        id: 'act-circadian',
+        priority: 'COUNTERMEASURE',
+        system: 'Behavioral / Endocrine',
+        title: 'Activate 480nm Blue-Enriched SLA Lighting & VR Terrestrial Re-Anchoring',
+        detail: `Sleep deficit (${vitals.sleepHours} hrs) and elevated salivary cortisol (${vitals.cortisol} µg/dL) confirm circadian phase drift and confinement stress.`,
+        linkedTaskId: 'sla_light',
+        badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/50'
+      });
+    }
+
+    if (vitals.systolic >= 130 || vitals.glucose >= 105) {
+      actions.push({
+        id: 'act-cardio',
+        priority: 'PREVENTIVE',
+        system: 'Cardio / Metabolic',
+        title: 'Execute 30-Min Aerobic Interval Protocol on T2 Treadmill',
+        detail: `BP (${vitals.systolic}/${vitals.diastolic} mmHg) and fasting glucose (${vitals.glucose} mg/dL) reflect microgravity insulin resistance and vascular stiffening.`,
+        linkedTaskId: 't2',
+        badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        id: 'act-nom',
+        priority: 'ROUTINE MAINTENANCE',
+        system: 'All Systems Nominal',
+        title: 'Maintain Standard 2.5-Hour Daily Countermeasure Block',
+        detail: 'All physiological indicators are tracking within personal pre-flight baseline envelopes.',
+        linkedTaskId: 'ared',
+        badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+      });
+    }
+
+    return actions;
+  }, [vitals]);
+
+  const selectedSystem = useMemo(
+    () => BODY_SYSTEMS.find(s => s.id === selectedSystemId) || BODY_SYSTEMS[0],
+    [selectedSystemId]
+  );
+
+  // Metrics breakdown for the currently selected body system
+  const selectedSystemMetrics = useMemo(() => {
+    switch (selectedSystemId) {
+      case 'neuro':
+        return [
+          {
+            label: 'Intracranial Pressure (ICP)',
+            value: `${vitals.icp} mmHg`,
+            baseline: `${PERSONAL_BASELINE.icp} mmHg`,
+            delta: `${(vitals.icp - PERSONAL_BASELINE.icp >= 0 ? '+' : '')}${(vitals.icp - PERSONAL_BASELINE.icp).toFixed(1)}`,
+            status: vitals.icp >= 18 ? 'CRITICAL' : vitals.icp >= 15 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Non-invasive tympanic/ocular estimate'
+          },
+          {
+            label: 'Optic Nerve Sheath (ONSD)',
+            value: `${vitals.opticNerveDiameter} mm`,
+            baseline: `${PERSONAL_BASELINE.opticNerveDiameter} mm`,
+            delta: `${(vitals.opticNerveDiameter - PERSONAL_BASELINE.opticNerveDiameter >= 0 ? '+' : '')}${(vitals.opticNerveDiameter - PERSONAL_BASELINE.opticNerveDiameter).toFixed(1)}`,
+            status: vitals.opticNerveDiameter >= 6.0 ? 'CRITICAL' : vitals.opticNerveDiameter >= 5.5 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'SANS edema threshold > 5.8mm'
+          },
+          {
+            label: 'Circadian Sleep Duration',
+            value: `${vitals.sleepHours} hrs`,
+            baseline: `${PERSONAL_BASELINE.sleepHours} hrs`,
+            delta: `${(vitals.sleepHours - PERSONAL_BASELINE.sleepHours >= 0 ? '+' : '')}${(vitals.sleepHours - PERSONAL_BASELINE.sleepHours).toFixed(1)}`,
+            status: vitals.sleepHours < 5.2 ? 'CRITICAL' : vitals.sleepHours < 6.5 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Actigraphy + EEG headband'
+          },
+          {
+            label: 'Mood & Cognitive Readiness',
+            value: `${vitals.moodScore} / 10`,
+            baseline: `${PERSONAL_BASELINE.moodScore} / 10`,
+            delta: `${(vitals.moodScore - PERSONAL_BASELINE.moodScore >= 0 ? '+' : '')}${(vitals.moodScore - PERSONAL_BASELINE.moodScore).toFixed(1)}`,
+            status: vitals.moodScore < 5.0 ? 'CRITICAL' : vitals.moodScore < 6.8 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'PVT reaction speed & self-log'
+          }
+        ];
+      case 'cardio':
+        return [
+          {
+            label: 'Arterial Blood Pressure',
+            value: `${vitals.systolic}/${vitals.diastolic} mmHg`,
+            baseline: `${PERSONAL_BASELINE.systolic}/${PERSONAL_BASELINE.diastolic} mmHg`,
+            delta: `${vitals.systolic - PERSONAL_BASELINE.systolic >= 0 ? '+' : ''}${vitals.systolic - PERSONAL_BASELINE.systolic} sys`,
+            status: vitals.systolic >= 140 ? 'CRITICAL' : vitals.systolic >= 128 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Continuous optical pulse transit'
+          },
+          {
+            label: 'Resting Heart Rate',
+            value: `${vitals.heartRate} bpm`,
+            baseline: `${PERSONAL_BASELINE.heartRate} bpm`,
+            delta: `${vitals.heartRate - PERSONAL_BASELINE.heartRate >= 0 ? '+' : ''}${vitals.heartRate - PERSONAL_BASELINE.heartRate} bpm`,
+            status: vitals.heartRate >= 82 ? 'CRITICAL' : vitals.heartRate >= 72 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Astroskin 12-lead garment'
+          },
+          {
+            label: 'Heart Rate Variability (HRV)',
+            value: `${vitals.hrv} ms`,
+            baseline: `${PERSONAL_BASELINE.hrv} ms`,
+            delta: `${vitals.hrv - PERSONAL_BASELINE.hrv >= 0 ? '+' : ''}${vitals.hrv - PERSONAL_BASELINE.hrv} ms`,
+            status: vitals.hrv < 42 ? 'CRITICAL' : vitals.hrv < 55 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Autonomic vagal recovery index'
+          }
+        ];
+      case 'immune':
+        return [
+          {
+            label: 'White Blood Cell (WBC) Count',
+            value: `${vitals.wbc} x10³/µL`,
+            baseline: `${PERSONAL_BASELINE.wbc} x10³/µL`,
+            delta: `${(vitals.wbc - PERSONAL_BASELINE.wbc >= 0 ? '+' : '')}${(vitals.wbc - PERSONAL_BASELINE.wbc).toFixed(1)}`,
+            status: vitals.wbc < 3.8 ? 'CRITICAL' : vitals.wbc < 4.5 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Capillary microfluidic assay'
+          },
+          {
+            label: 'Salivary Cortisol (Stress)',
+            value: `${vitals.cortisol} µg/dL`,
+            baseline: `${PERSONAL_BASELINE.cortisol} µg/dL`,
+            delta: `${(vitals.cortisol - PERSONAL_BASELINE.cortisol >= 0 ? '+' : '')}${(vitals.cortisol - PERSONAL_BASELINE.cortisol).toFixed(1)}`,
+            status: vitals.cortisol > 22 ? 'CRITICAL' : vitals.cortisol > 16 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'HPA-axis neuroendocrine load'
+          },
+          {
+            label: 'Core Body Temperature',
+            value: `${vitals.bodyTemp} °C`,
+            baseline: `${PERSONAL_BASELINE.bodyTemp} °C`,
+            delta: `${(vitals.bodyTemp - PERSONAL_BASELINE.bodyTemp >= 0 ? '+' : '')}${(vitals.bodyTemp - PERSONAL_BASELINE.bodyTemp).toFixed(1)}°C`,
+            status: vitals.bodyTemp >= 37.8 ? 'CRITICAL' : vitals.bodyTemp >= 37.3 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Thermal core sensor patch'
+          }
+        ];
+      case 'metabolic':
+        return [
+          {
+            label: 'Fasting Blood Glucose',
+            value: `${vitals.glucose} mg/dL`,
+            baseline: `${PERSONAL_BASELINE.glucose} mg/dL`,
+            delta: `${vitals.glucose - PERSONAL_BASELINE.glucose >= 0 ? '+' : ''}${vitals.glucose - PERSONAL_BASELINE.glucose}`,
+            status: vitals.glucose >= 120 ? 'CRITICAL' : vitals.glucose >= 102 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Spaceflight insulin resistance index'
+          },
+          {
+            label: 'Cellular Hydration Index',
+            value: `${vitals.hydration}%`,
+            baseline: `${PERSONAL_BASELINE.hydration}%`,
+            delta: `${vitals.hydration - PERSONAL_BASELINE.hydration}%`,
+            status: vitals.hydration < 80 ? 'CRITICAL' : vitals.hydration < 88 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Bioimpedance + Urine SG'
+          },
+          {
+            label: 'Serum 25(OH) Vitamin D',
+            value: `${vitals.vitaminD} ng/mL`,
+            baseline: `${PERSONAL_BASELINE.vitaminD} ng/mL`,
+            delta: `${vitals.vitaminD - PERSONAL_BASELINE.vitaminD} ng/mL`,
+            status: vitals.vitaminD < 25 ? 'CRITICAL' : vitals.vitaminD < 36 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Zero solar UV-B synthesis environment'
+          }
+        ];
+      case 'musculo':
+        return [
+          {
+            label: 'Calcaneal/Femoral BMD T-Score',
+            value: `${vitals.bmdTScore > 0 ? '+' : ''}${vitals.bmdTScore}`,
+            baseline: `+${PERSONAL_BASELINE.bmdTScore}`,
+            delta: `${(vitals.bmdTScore - PERSONAL_BASELINE.bmdTScore).toFixed(1)} SD`,
+            status: vitals.bmdTScore <= -1.2 ? 'CRITICAL' : vitals.bmdTScore <= -0.6 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Ultrasound osteopenia tracker'
+          },
+          {
+            label: '24h Urinary Calcium Excretion',
+            value: `${vitals.urinaryCalcium} mg/d`,
+            baseline: `${PERSONAL_BASELINE.urinaryCalcium} mg/d`,
+            delta: `+${vitals.urinaryCalcium - PERSONAL_BASELINE.urinaryCalcium} mg/d`,
+            status: vitals.urinaryCalcium >= 280 ? 'CRITICAL' : vitals.urinaryCalcium >= 220 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Nephrolithiasis (renal stone) risk'
+          },
+          {
+            label: 'ARED Resistive Load Compliance',
+            value: `${vitals.aredCompliance}%`,
+            baseline: `${PERSONAL_BASELINE.aredCompliance}%`,
+            delta: `${vitals.aredCompliance - PERSONAL_BASELINE.aredCompliance}%`,
+            status: vitals.aredCompliance < 75 ? 'CRITICAL' : vitals.aredCompliance < 88 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'Target: 60 min daily vacuum cylinders'
+          }
+        ];
+      case 'radiation':
+      default:
+        return [
+          {
+            label: 'Daily Hull Dose Rate (TEPC)',
+            value: `${vitals.dailyRadRate} mSv/day`,
+            baseline: `${PERSONAL_BASELINE.dailyRadRate} mSv/day`,
+            delta: `${(vitals.dailyRadRate - PERSONAL_BASELINE.dailyRadRate >= 0 ? '+' : '')}${(vitals.dailyRadRate - PERSONAL_BASELINE.dailyRadRate).toFixed(2)}`,
+            status: vitals.dailyRadRate >= 2.0 ? 'CRITICAL' : vitals.dailyRadRate >= 0.6 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'GCR + Solar Particle Event flux'
+          },
+          {
+            label: 'Cumulative Mission Dose',
+            value: `${vitals.cumRadiation} mSv`,
+            baseline: 'Career Limit: 600 mSv',
+            delta: `${Math.round((vitals.cumRadiation / 600) * 100)}% of NASA Limit`,
+            status: vitals.cumRadiation >= 250 ? 'CRITICAL' : vitals.cumRadiation >= 150 ? 'CAUTION' : 'NOMINAL',
+            unitNote: 'NASA Permissible Exposure Limit'
+          }
+        ];
+    }
+  }, [selectedSystemId, vitals]);
+
+  // 14-Sol Time Series Data Generator for Interactive SVG Chart
+  const chartData = useMemo(() => {
+    const sols = Array.from({ length: 14 }, (_, i) => SCENARIOS[activeScenario].sol - 13 + i);
+    const configs = {
+      icp_bp: {
+        title: 'Systolic Blood Pressure (mmHg) & Intracranial Pressure',
+        unit: 'mmHg',
+        baseline: PERSONAL_BASELINE.systolic,
+        warnThreshold: 135,
+        current: vitals.systolic,
+        min: 95,
+        max: 160
+      },
+      glucose: {
+        title: 'Fasting Blood Glucose Trajectory (mg/dL)',
+        unit: 'mg/dL',
+        baseline: PERSONAL_BASELINE.glucose,
+        warnThreshold: 110,
+        current: vitals.glucose,
+        min: 70,
+        max: 140
+      },
+      sleep_mood: {
+        title: 'Circadian Sleep Architecture (Hours / Sol)',
+        unit: 'hrs',
+        baseline: PERSONAL_BASELINE.sleepHours,
+        warnThreshold: 6.0,
+        invertWarn: true,
+        current: vitals.sleepHours,
+        min: 3.5,
+        max: 9.5
+      },
+      calcium: {
+        title: 'Urinary Calcium Resorption Marker (mg/day)',
+        unit: 'mg/d',
+        baseline: PERSONAL_BASELINE.urinaryCalcium,
+        warnThreshold: 250,
+        current: vitals.urinaryCalcium,
+        min: 130,
+        max: 350
+      },
+      radiation: {
+        title: 'Daily Radiation Dose Equivalent (mSv/day)',
+        unit: 'mSv/d',
+        baseline: PERSONAL_BASELINE.dailyRadRate,
+        warnThreshold: 1.5,
+        current: vitals.dailyRadRate,
+        min: 0,
+        max: 6.0
+      }
+    };
+
+    const cfg = configs[selectedChartMetric];
+    const points = sols.map((sol, idx) => {
+      const progress = idx / 13;
+      const wave = Math.sin(idx * 1.1) * ((cfg.max - cfg.min) * 0.03);
+      const val = Number(
+        (cfg.baseline + (cfg.current - cfg.baseline) * Math.pow(progress, 1.4) + (idx === 13 ? 0 : wave)).toFixed(2)
+      );
+      return { sol: `Sol ${sol}`, val };
+    });
+
+    return { ...cfg, points };
+  }, [selectedChartMetric, vitals, activeScenario]);
+
+  // Helper for status badge styling
+  const getStatusStyle = (status) => {
+    if (status === 'CRITICAL') {
+      return {
+        bg: 'bg-red-500/15',
+        border: 'border-red-500/50',
+        text: 'text-red-400',
+        dot: '#EF4444',
+        label: 'CRITICAL // FLIGHT SURGEON ALERT'
+      };
+    }
+    if (status === 'CAUTION') {
+      return {
+        bg: 'bg-amber-500/15',
+        border: 'border-amber-500/50',
+        text: 'text-amber-300',
+        dot: '#F59E0B',
+        label: 'CAUTION // DEVIATION DETECTED'
+      };
+    }
+    return {
+      bg: 'bg-emerald-500/15',
+      border: 'border-emerald-500/40',
+      text: 'text-emerald-400',
+      dot: '#10B981',
+      label: 'NOMINAL // WITHIN BASELINE'
+    };
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070B14] text-slate-100 font-sans selection:bg-sky-500 selection:text-slate-950 pb-12">
+      {/* Subtle Tactical Grid Background Overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-[0.04]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, #38BDF8 1px, transparent 1px), linear-gradient(to bottom, #38BDF8 1px, transparent 1px)',
+          backgroundSize: '36px 36px'
+        }}
+      />
+
+      {/* Top Telemetry Command Header */}
+      <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-[#070B14]/90 backdrop-blur-md">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+          {/* Brand & Crew Info */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-400/40 flex items-center justify-center shadow-[0_0_15px_rgba(56,189,248,0.2)]">
+              <Activity className="w-5 h-5 text-sky-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono uppercase tracking-widest text-sky-400 font-semibold">
+                  ASTRAL-MED // v4.8 BIO-TELEMETRY
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  AUTONOMOUS MODE
+                </span>
+              </div>
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">
+                CDR. ELENA VANCE <span className="text-slate-400 font-normal text-sm">| ARES-IV DEEP SPACE TRANSIT</span>
+              </h1>
+            </div>
+          </div>
+
+          {/* Mission Telemetry Readouts & Self-Check Button */}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+            <div className="hidden md:flex items-center gap-4 bg-slate-900/90 border border-slate-800 px-3.5 py-1.5 rounded-lg text-xs font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px]">MISSION SOL</span>
+                <span className="text-sky-300 font-semibold">SOL {SCENARIOS[activeScenario].sol}</span>
+              </div>
+              <div className="h-6 w-px bg-slate-800" />
+              <div>
+                <span className="text-slate-400 block text-[10px]">ONE-WAY LIGHT TIME</span>
+                <span className="text-amber-300 font-semibold flex items-center gap-1">
+                  <Radio className="w-3 h-3" /> {SCENARIOS[activeScenario].commsDelay}
+                </span>
+              </div>
+              <div className="h-6 w-px bg-slate-800" />
+              <div>
+                <span className="text-slate-400 block text-[10px]">BIO-READINESS</span>
+                <span
+                  className={`font-bold ${
+                    bioReadinessScore >= 85
+                      ? 'text-emerald-400'
+                      : bioReadinessScore >= 70
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+                  }`}
+                >
+                  {bioReadinessScore}%
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsLogModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs sm:text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.35)] cursor-pointer"
+            >
+              <Sliders className="w-4 h-4" />
+              <span>Log Vitals / Self-Assessment</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Mission Scenario Simulator Bar */}
+        <div className="bg-slate-900/70 border-t border-slate-800/70">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              <span>SIMULATE SPACEFLIGHT HAZARD STATE:</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.values(SCENARIOS).map(sc => {
+                const isSelected = activeScenario === sc.id;
+                return (
+                  <button
+                    key={sc.id}
+                    onClick={() => handleSelectScenario(sc.id)}
+                    className={`px-3 py-1 rounded-md text-xs font-mono transition cursor-pointer border ${
+                      isSelected
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.2)] font-semibold'
+                        : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {sc.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Action Feedback Notification Toast */}
+      {notificationBanner && (
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 mt-3">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs sm:text-sm font-mono">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{notificationBanner}</span>
+            </div>
+            <button onClick={() => setNotificationBanner(null)} className="text-emerald-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Mission Control Grid */}
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-5 space-y-6">
+        {/* Top Row: Quick Vitals Telemetry Strip */}
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Card 1: Heart Rate & BP */}
+          <div
+            onClick={() => setSelectedSystemId('cardio')}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              selectedSystemId === 'cardio'
+                ? 'bg-slate-900/95 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]'
+                : 'bg-[#0F172A]/80 border-slate-800/80 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">BP / HR</span>
+              <Heart className="w-4 h-4 text-rose-400" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.systolic}/{vitals.diastolic}{' '}
+              <span className="text-xs font-normal text-slate-400">mmHg</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>HR: {vitals.heartRate} bpm</span>
+              <span
+                className={
+                  systemStatuses.cardio === 'NOMINAL'
+                    ? 'text-emerald-400'
+                    : systemStatuses.cardio === 'CAUTION'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }
+              >
+                ● {systemStatuses.cardio}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: ICP & Ocular SANS */}
+          <div
+            onClick={() => setSelectedSystemId('neuro')}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              selectedSystemId === 'neuro'
+                ? 'bg-slate-900/95 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]'
+                : 'bg-[#0F172A]/80 border-slate-800/80 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">ICP / SANS</span>
+              <Eye className="w-4 h-4 text-sky-400" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.icp} <span className="text-xs font-normal text-slate-400">mmHg</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>ONSD: {vitals.opticNerveDiameter}mm</span>
+              <span
+                className={
+                  systemStatuses.neuro === 'NOMINAL'
+                    ? 'text-emerald-400'
+                    : systemStatuses.neuro === 'CAUTION'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }
+              >
+                ● {systemStatuses.neuro}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Sleep & Mood */}
+          <div
+            onClick={() => setSelectedSystemId('neuro')}
+            className="p-3.5 rounded-xl bg-[#0F172A]/80 border border-slate-800/80 hover:border-slate-700 transition cursor-pointer"
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">SLEEP / MOOD</span>
+              <Moon className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.sleepHours} <span className="text-xs font-normal text-slate-400">hrs/sol</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Mood: {vitals.moodScore}/10</span>
+              <span className={vitals.sleepHours < 6 ? 'text-amber-400' : 'text-emerald-400'}>
+                {vitals.sleepHours < 6 ? 'DRIFT' : 'SYNCED'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Fasting Blood Sugar */}
+          <div
+            onClick={() => setSelectedSystemId('metabolic')}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              selectedSystemId === 'metabolic'
+                ? 'bg-slate-900/95 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]'
+                : 'bg-[#0F172A]/80 border-slate-800/80 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">GLUCOSE / HYDR</span>
+              <Droplets className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.glucose} <span className="text-xs font-normal text-slate-400">mg/dL</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Hydration: {vitals.hydration}%</span>
+              <span
+                className={
+                  systemStatuses.metabolic === 'NOMINAL'
+                    ? 'text-emerald-400'
+                    : systemStatuses.metabolic === 'CAUTION'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }
+              >
+                ● {systemStatuses.metabolic}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 5: Bone & Calcium */}
+          <div
+            onClick={() => setSelectedSystemId('musculo')}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              selectedSystemId === 'musculo'
+                ? 'bg-slate-900/95 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]'
+                : 'bg-[#0F172A]/80 border-slate-800/80 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">BMD / CALCIUM</span>
+              <Bone className="w-4 h-4 text-amber-300" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.bmdTScore > 0 ? `+${vitals.bmdTScore}` : vitals.bmdTScore}{' '}
+              <span className="text-xs font-normal text-slate-400">T-Score</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Ca²⁺: {vitals.urinaryCalcium}mg</span>
+              <span
+                className={
+                  systemStatuses.musculo === 'NOMINAL'
+                    ? 'text-emerald-400'
+                    : systemStatuses.musculo === 'CAUTION'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }
+              >
+                ● {systemStatuses.musculo}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 6: Radiation & WBC */}
+          <div
+            onClick={() => setSelectedSystemId('radiation')}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              selectedSystemId === 'radiation'
+                ? 'bg-slate-900/95 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]'
+                : 'bg-[#0F172A]/80 border-slate-800/80 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span className="font-mono uppercase">RAD / IMMUNE</span>
+              <Radiation className="w-4 h-4 text-yellow-400" />
+            </div>
+            <div className="text-lg font-bold font-mono text-white">
+              {vitals.dailyRadRate} <span className="text-xs font-normal text-slate-400">mSv/d</span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>WBC: {vitals.wbc}k/µL</span>
+              <span
+                className={
+                  systemStatuses.radiation === 'NOMINAL'
+                    ? 'text-emerald-400'
+                    : systemStatuses.radiation === 'CAUTION'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }
+              >
+                ● {systemStatuses.radiation}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Centerpiece Row: Interactive Anatomical Bio-Scanner + Diagnostic & Hazard Panel */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* LEFT 5 COLS: Interactive SVG Anatomical Body Scanner */}
+          <div className="lg:col-span-5 bg-[#0F172A]/90 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden">
+            {/* Scanner Header */}
+            <div className="flex items-center justify-between z-10">
+              <div>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400 block">
+                  BIOMETRIC ANATOMICAL SCANNER
+                </span>
+                <h2 className="text-base font-bold text-white">Select Physiological Hotspot</h2>
+              </div>
+              <div className="text-right font-mono text-[11px] text-slate-400">
+                <div>SYNC: {lastSyncTime}</div>
+                <div className="text-emerald-400">0G BASELINE CALIBRATED</div>
+              </div>
+            </div>
+
+            {/* Interactive SVG Human Silhouette & Organ Nodes */}
+            <div className="relative my-2 flex items-center justify-center">
+              <svg
+                viewBox="0 0 300 440"
+                className="w-full max-w-[290px] h-[360px] select-none drop-shadow-[0_0_25px_rgba(56,189,248,0.12)]"
+              >
+                <defs>
+                  <radialGradient id="scannerGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#0F172A" stopOpacity="0" />
+                  </radialGradient>
+                  <linearGradient id="bodyStroke" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.85" />
+                    <stop offset="50%" stopColor="#0284C7" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#38BDF8" stopOpacity="0.85" />
+                  </linearGradient>
+                </defs>
+
+                {/* Ambient Radar Circles */}
+                <circle cx="150" cy="210" r="145" fill="url(#scannerGlow)" />
+                <circle
+                  cx="150"
+                  cy="210"
+                  r="130"
+                  fill="none"
+                  stroke="#1E293B"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <circle cx="150" cy="210" r="90" fill="none" stroke="#1E293B" strokeWidth="1" />
+
+                {/* Horizontal HUD Calibration Lines */}
+                <line x1="25" y1="58" x2="275" y2="58" stroke="#1E293B" strokeWidth="0.7" />
+                <line x1="25" y1="150" x2="275" y2="150" stroke="#1E293B" strokeWidth="0.7" />
+                <line x1="25" y1="215" x2="275" y2="215" stroke="#1E293B" strokeWidth="0.7" />
+                <line x1="25" y1="315" x2="275" y2="315" stroke="#1E293B" strokeWidth="0.7" />
+
+                {/* Astronaut Anatomical Silhouette Path */}
+                <g stroke="url(#bodyStroke)" strokeWidth="2" fill="#0B1528" fillOpacity="0.75">
+                  {/* Head & Neck */}
+                  <path d="M150 28 C166 28 175 40 175 56 C175 72 165 84 160 90 L162 102 L138 102 L140 90 C135 84 125 72 125 56 C125 40 134 28 150 28 Z" />
+                  {/* Torso & Arms */}
+                  <path d="M138 102 L104 114 C94 118 88 128 86 144 L76 232 C75 240 81 246 87 245 C92 244 96 238 98 230 L108 156 L114 156 L112 246 L120 392 C121 402 128 408 135 408 C142 408 146 401 147 390 L150 278 L153 390 C154 401 158 408 165 408 C172 408 179 402 180 392 L188 246 L186 156 L192 156 L202 230 C204 238 208 244 213 245 C219 246 225 240 224 232 L214 144 C212 128 206 118 196 114 L162 102 Z" />
+                </g>
+
+                {/* Internal Wireframe Spine & Rib Accents */}
+                <line x1="150" y1="92" x2="150" y2="255" stroke="#38BDF8" strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="3 3" />
+                <path d="M126 132 Q150 142 174 132" fill="none" stroke="#38BDF8" strokeOpacity="0.25" strokeWidth="1.2" />
+                <path d="M122 150 Q150 162 178 150" fill="none" stroke="#38BDF8" strokeOpacity="0.25" strokeWidth="1.2" />
+                <path d="M125 168 Q150 178 175 168" fill="none" stroke="#38BDF8" strokeOpacity="0.25" strokeWidth="1.2" />
+
+                {/* Interactive Organ/System Hotspots */}
+                {BODY_SYSTEMS.map(sys => {
+                  const st = systemStatuses[sys.id];
+                  const style = getStatusStyle(st);
+                  const isSelected = selectedSystemId === sys.id;
+
+                  return (
+                    <g
+                      key={sys.id}
+                      onClick={() => setSelectedSystemId(sys.id)}
+                      className="cursor-pointer group"
+                    >
+                      {/* Outer Pulse Ring */}
+                      <circle
+                        cx={sys.coords.x}
+                        cy={sys.coords.y}
+                        r={isSelected ? 19 : 13}
+                        fill={style.dot}
+                        fillOpacity={isSelected ? '0.25' : '0.12'}
+                        stroke={style.dot}
+                        strokeWidth={isSelected ? '2' : '1'}
+                      />
+                      {/* Animated Target Ring when Selected */}
+                      {isSelected && (
+                        <circle
+                          cx={sys.coords.x}
+                          cy={sys.coords.y}
+                          r="24"
+                          fill="none"
+                          stroke="#38BDF8"
+                          strokeWidth="1.5"
+                          strokeDasharray="4 3"
+                        />
+                      )}
+                      {/* Core Hotspot Node */}
+                      <circle
+                        cx={sys.coords.x}
+                        cy={sys.coords.y}
+                        r={isSelected ? 7.5 : 6}
+                        fill={style.dot}
+                        stroke="#070B14"
+                        strokeWidth="2"
+                      />
+                      {/* Callout Label Line */}
+                      <text
+                        x={sys.coords.x > 155 ? sys.coords.x + 24 : sys.coords.x - 24}
+                        y={sys.coords.y + 4}
+                        textAnchor={sys.coords.x > 155 ? 'start' : 'end'}
+                        className={`text-[10px] font-mono tracking-tight transition ${
+                          isSelected ? 'fill-white font-bold' : 'fill-slate-400'
+                        }`}
+                      >
+                        {sys.shortName}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* System Selector Pills at Bottom of Scanner */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 z-10">
+              {BODY_SYSTEMS.map(sys => {
+                const IconComponent = sys.icon;
+                const st = systemStatuses[sys.id];
+                const isSelected = selectedSystemId === sys.id;
+                return (
+                  <button
+                    key={sys.id}
+                    onClick={() => setSelectedSystemId(sys.id)}
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-lg border text-left text-xs transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-500/20 border-sky-400 text-white font-semibold'
+                        : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <IconComponent className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <span className="truncate">{sys.shortName}</span>
+                    </span>
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        st === 'CRITICAL'
+                          ? 'bg-red-500 shadow-[0_0_8px_#EF4444]'
+                          : st === 'CAUTION'
+                          ? 'bg-amber-400'
+                          : 'bg-emerald-400'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* RIGHT 7 COLS: Detailed Diagnostic, Baseline Comparison & Self-Exam Panel */}
+          <div className="lg:col-span-7 bg-[#0F172A]/90 border border-slate-800 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-5">
+            {/* System Header & Status Badge */}
+            <div>
+              <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center">
+                    {React.createElement(selectedSystem.icon, { className: 'w-6 h-6 text-sky-400' })}
+                  </div>
+                  <div>
+                    <span className="text-xs font-mono uppercase text-sky-400 block">
+                      PRIMARY HAZARD: {selectedSystem.hazard}
+                    </span>
+                    <h2 className="text-xl font-bold text-white">{selectedSystem.name}</h2>
+                  </div>
+                </div>
+
+                {/* Status Pill */}
+                {(() => {
+                  const st = getStatusStyle(systemStatuses[selectedSystemId]);
+                  return (
+                    <div className={`px-3 py-1.5 rounded-lg border ${st.bg} ${st.border} ${st.text} text-xs font-mono font-semibold`}>
+                      {st.label}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Spaceflight Pathophysiology Mechanism Box */}
+              <div className="mt-4 p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/90 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                <span className="text-sky-400 font-mono uppercase text-xs font-semibold block mb-1">
+                  SPACEFLIGHT PATHOPHYSIOLOGY & MECHANISM:
+                </span>
+                {selectedSystem.mechanism}
+              </div>
+            </div>
+
+            {/* Telemetry Indicators vs Personal Pre-Flight Baseline */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                  INDICATORS VS. PERSONAL PRE-FLIGHT BASELINE
+                </h3>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Individualized Astronaut Reference
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {selectedSystemMetrics.map((m, idx) => {
+                  const st = getStatusStyle(m.status);
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/90 flex flex-col justify-between"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-medium text-slate-300">{m.label}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${st.bg} ${st.text} border ${st.border}`}>
+                          {m.status}
+                        </span>
+                      </div>
+                      <div className="my-2 flex items-baseline justify-between">
+                        <span className="text-xl font-bold font-mono text-white">{m.value}</span>
+                        <span className="text-xs font-mono text-slate-400">
+                          Baseline: <strong className="text-slate-200">{m.baseline}</strong> ({m.delta})
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-400 border-t border-slate-800/60 pt-1.5">
+                        {m.unitNote}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Guided Autonomous Self-Exam Procedure Box */}
+            <div className="p-4 rounded-xl bg-sky-950/20 border border-sky-500/30">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-sky-400" />
+                  <h4 className="text-xs sm:text-sm font-bold text-sky-300 font-mono uppercase">
+                    {selectedSystem.selfExamTitle}
+                  </h4>
+                </div>
+                <button
+                  onClick={() => {
+                    setExamStepProgress(0);
+                    setIsExamModalOpen(true);
+                  }}
+                  className="px-3 py-1 rounded-md bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-200 text-xs font-mono transition cursor-pointer flex items-center gap-1"
+                >
+                  <span>Launch Interactive Diagnostic</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <ol className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+                {selectedSystem.selfExamSteps.map((step, index) => (
+                  <li key={index} className="flex items-start gap-2 bg-slate-900/60 p-2 rounded-lg border border-slate-800/70">
+                    <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-300 font-mono text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        {/* Bottom Row: Multi-Metric Time-Series Trend Chart + Autonomous Countermeasure & Gamification Engine */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT 7 COLS: 14-Sol Telemetry Trajectory Chart & Autonomous Prescriptions */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* 14-Sol Time-Series Chart Card */}
+            <div className="bg-[#0F172A]/90 border border-slate-800 rounded-2xl p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400 block">
+                    14-SOL TELEMETRY TRAJECTORY & WARNING ENVELOPE
+                  </span>
+                  <h3 className="text-base font-bold text-white">{chartData.title}</h3>
+                </div>
+
+                {/* Metric Selector Tabs */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'icp_bp', label: 'BP / Hemodynamics' },
+                    { id: 'glucose', label: 'Blood Glucose' },
+                    { id: 'sleep_mood', label: 'Sleep Hours' },
+                    { id: 'calcium', label: 'Bone Calcium' },
+                    { id: 'radiation', label: 'Radiation Flux' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setSelectedChartMetric(tab.id)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-mono transition cursor-pointer ${
+                        selectedChartMetric === tab.id
+                          ? 'bg-sky-500 text-slate-950 font-semibold'
+                          : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom High-Precision SVG Telemetry Chart */}
+              <div className="w-full overflow-hidden">
+                {(() => {
+                  const width = 680;
+                  const height = 220;
+                  const padL = 44;
+                  const padR = 20;
+                  const padT = 20;
+                  const padB = 32;
+                  const plotW = width - padL - padR;
+                  const plotH = height - padT - padB;
+
+                  const mapY = (val) => {
+                    const clamped = Math.max(chartData.min, Math.min(chartData.max, val));
+                    return padT + plotH - ((clamped - chartData.min) / (chartData.max - chartData.min)) * plotH;
+                  };
+
+                  const pts = chartData.points.map((p, idx) => ({
+                    x: padL + (idx / (chartData.points.length - 1)) * plotW,
+                    y: mapY(p.val),
+                    sol: p.sol,
+                    val: p.val
+                  }));
+
+                  const polylinePoints = pts.map(p => `${p.x},${p.y}`).join(' ');
+                  const areaPoints = `${pts[0].x},${padT + plotH} ${polylinePoints} ${pts[pts.length - 1].x},${padT + plotH}`;
+                  const baselineY = mapY(chartData.baseline);
+                  const warnY = mapY(chartData.warnThreshold);
+
+                  return (
+                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-56 select-none">
+                      <defs>
+                        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.35" />
+                          <stop offset="100%" stopColor="#38BDF8" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Background Grid Lines */}
+                      {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+                        const y = padT + t * plotH;
+                        const labelVal = (chartData.max - t * (chartData.max - chartData.min)).toFixed(
+                          chartData.max <= 12 ? 1 : 0
+                        );
+                        return (
+                          <g key={i}>
+                            <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#1E293B" strokeWidth="1" />
+                            <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-slate-500 text-[10px] font-mono">
+                              {labelVal}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* Spaceflight Warning Threshold Line */}
+                      <line
+                        x1={padL}
+                        y1={warnY}
+                        x2={width - padR}
+                        y2={warnY}
+                        stroke="#EF4444"
+                        strokeWidth="1.2"
+                        strokeDasharray="5 4"
+                      />
+                      <text x={width - padR - 4} y={warnY - 5} textAnchor="end" className="fill-red-400 text-[10px] font-mono">
+                        Alert Threshold ({chartData.warnThreshold} {chartData.unit})
+                      </text>
+
+                      {/* Personal Pre-Flight Baseline Line */}
+                      <line
+                        x1={padL}
+                        y1={baselineY}
+                        x2={width - padR}
+                        y2={baselineY}
+                        stroke="#10B981"
+                        strokeWidth="1.2"
+                        strokeDasharray="3 3"
+                      />
+                      <text x={padL + 6} y={baselineY - 5} className="fill-emerald-400 text-[10px] font-mono">
+                        Personal Baseline ({chartData.baseline} {chartData.unit})
+                      </text>
+
+                      {/* Shaded Telemetry Area & Line */}
+                      <polygon points={areaPoints} fill="url(#areaGrad)" />
+                      <polyline
+                        fill="none"
+                        stroke="#38BDF8"
+                        strokeWidth="2.5"
+                        points={polylinePoints}
+                      />
+
+                      {/* Data Points & Sol Labels */}
+                      {pts.map((p, i) => (
+                        <g key={i}>
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={i === pts.length - 1 ? 5 : 3}
+                            fill={i === pts.length - 1 ? '#F59E0B' : '#38BDF8'}
+                            stroke="#070B14"
+                            strokeWidth="1.5"
+                          />
+                          {(i % 2 === 0 || i === pts.length - 1) && (
+                            <text
+                              x={p.x}
+                              y={height - 8}
+                              textAnchor="middle"
+                              className="fill-slate-400 text-[10px] font-mono"
+                            >
+                              {p.sol}
+                            </text>
+                          )}
+                        </g>
+                      ))}
+                    </svg>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Prioritized Autonomous Clinical Decision Support Directives */}
+            <div className="bg-[#0F172A]/90 border border-slate-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400 block">
+                    AUTONOMOUS CLINICAL DECISION SUPPORT (NO GROUND LINK REQUIRED)
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    Prioritized Countermeasure Directives
+                  </h3>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                  {prioritizedActions.length} Active Protocol(s)
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {prioritizedActions.map(act => {
+                  const linkedTask = tasks.find(t => t.id === act.linkedTaskId);
+                  return (
+                    <div
+                      key={act.id}
+                      className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${act.badgeColor}`}>
+                            {act.priority}
+                          </span>
+                          <span className="text-xs font-mono text-slate-400">// {act.system}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white">{act.title}</h4>
+                        <p className="text-xs text-slate-300">{act.detail}</p>
+                      </div>
+
+                      {linkedTask && (
+                        <button
+                          onClick={() => handleToggleTask(linkedTask.id)}
+                          className={`px-3.5 py-2 rounded-lg text-xs font-mono font-semibold shrink-0 transition cursor-pointer flex items-center gap-1.5 ${
+                            linkedTask.completed
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+                          }`}
+                        >
+                          {linkedTask.completed ? (
+                            <>
+                              <Check className="w-4 h-4" />
+                              <span>Protocol Logged</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-4 h-4" />
+                              <span>Execute Countermeasure</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT 5 COLS: Crew Gamification, Bio-Readiness & Daily Countermeasure Checklist */}
+          <div className="lg:col-span-5 bg-[#0F172A]/90 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-5">
+            <div>
+              {/* Gamification Header & Stats */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 block">
+                    BEHAVIORAL ADHERENCE & GAMIFICATION
+                  </span>
+                  <h3 className="text-base font-bold text-white">Daily Countermeasure Protocol</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{streakSols} Sol Streak</span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-lg bg-sky-500/15 border border-sky-500/40 text-sky-300 text-xs font-mono flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-sky-400" />
+                    <span>{totalXP} XP</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bio-Readiness Gauge Bar */}
+              <div className="my-4 p-3.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                <div className="flex items-center justify-between text-xs font-mono mb-1.5">
+                  <span className="text-slate-300">CREW BIO-READINESS SCORE</span>
+                  <span
+                    className={`font-bold text-sm ${
+                      bioReadinessScore >= 85
+                        ? 'text-emerald-400'
+                        : bioReadinessScore >= 70
+                        ? 'text-amber-400'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {bioReadinessScore} / 100
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      bioReadinessScore >= 85
+                        ? 'bg-gradient-to-r from-sky-400 to-emerald-400'
+                        : bioReadinessScore >= 70
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                        : 'bg-gradient-to-r from-red-500 to-orange-500'
+                    }`}
+                    style={{ width: `${bioReadinessScore}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Completing daily countermeasures directly stabilizes microgravity physiological drift and updates telemetry projections in real time.
+                </p>
+              </div>
+
+              {/* Interactive Checklist of Countermeasure Tasks */}
+              <div className="space-y-2.5">
+                {tasks.map(task => (
+                  <div
+                    key={task.id}
+                    onClick={() => handleToggleTask(task.id)}
+                    className={`p-3 rounded-xl border transition cursor-pointer flex items-start gap-3 ${
+                      task.completed
+                        ? 'bg-emerald-950/20 border-emerald-500/40 text-slate-200'
+                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-md flex items-center justify-center mt-0.5 shrink-0 border ${
+                        task.completed
+                          ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                          : 'border-slate-600 bg-slate-950'
+                      }`}
+                    >
+                      {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-xs sm:text-sm font-semibold ${
+                            task.completed ? 'line-through text-slate-400' : 'text-white'
+                          }`}
+                        >
+                          {task.title}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 shrink-0">
+                          +{task.xp} XP
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-400 mt-1">
+                        <span>{task.duration} • {task.category}</span>
+                        <span className="text-emerald-400/90">{task.impactText}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Ground Flight Surgeon Async Packet Status */}
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <UserCheck className="w-5 h-5 text-sky-400" />
+                <div>
+                  <div className="text-xs font-semibold text-white">
+                    Encrypted Store-and-Forward Medical Telemetry Packet
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-400">
+                    Auto-queued for Johnson Space Center Flight Surgeon ({SCENARIOS[activeScenario].commsDelay} delay)
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  setLastSyncTime(now.toTimeString().split(' ')[0] + ' UTC');
+                  setNotificationBanner('Telemetry burst packet queued for Deep Space Network (DSN) uplink.');
+                  setTimeout(() => setNotificationBanner(null), 3500);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-mono transition cursor-pointer shrink-0"
+              >
+                Transmit Packet
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* ================================================================= */}
+      {/* MODAL 1: MANUAL VITALS & SELF-ASSESSMENT LOGGING DRAWER           */}
+      {/* ================================================================= */}
+      {isLogModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0F172A] border border-slate-700 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-xs font-mono uppercase text-sky-400 block">
+                  CREW SELF-MONITORING INPUT
+                </span>
+                <h3 className="text-lg font-bold text-white">
+                  Log Biometric Vitals & Behavioral State
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsLogModalOpen(false)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              {/* Systolic BP */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Systolic BP (mmHg)</span>
+                  <span className="text-sky-400 font-bold">{vitals.systolic} mmHg</span>
+                </div>
+                <input
+                  type="range"
+                  min="95"
+                  max="165"
+                  value={vitals.systolic}
+                  onChange={e => setVitals({ ...vitals, systolic: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Heart Rate */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Resting Heart Rate (bpm)</span>
+                  <span className="text-sky-400 font-bold">{vitals.heartRate} bpm</span>
+                </div>
+                <input
+                  type="range"
+                  min="45"
+                  max="110"
+                  value={vitals.heartRate}
+                  onChange={e => setVitals({ ...vitals, heartRate: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Intracranial Pressure */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Intracranial Pressure (ICP)</span>
+                  <span className="text-sky-400 font-bold">{vitals.icp} mmHg</span>
+                </div>
+                <input
+                  type="range"
+                  min="9"
+                  max="24"
+                  step="0.2"
+                  value={vitals.icp}
+                  onChange={e => setVitals({ ...vitals, icp: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Fasting Blood Glucose */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Blood Sugar (mg/dL)</span>
+                  <span className="text-sky-400 font-bold">{vitals.glucose} mg/dL</span>
+                </div>
+                <input
+                  type="range"
+                  min="70"
+                  max="150"
+                  value={vitals.glucose}
+                  onChange={e => setVitals({ ...vitals, glucose: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Daily Sleep Hours */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Sleep Duration (hrs)</span>
+                  <span className="text-sky-400 font-bold">{vitals.sleepHours} hrs</span>
+                </div>
+                <input
+                  type="range"
+                  min="3.0"
+                  max="9.5"
+                  step="0.2"
+                  value={vitals.sleepHours}
+                  onChange={e => setVitals({ ...vitals, sleepHours: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Mood / Cognitive Readiness */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Mood & Cognitive State (1-10)</span>
+                  <span className="text-sky-400 font-bold">{vitals.moodScore} / 10</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.2"
+                  value={vitals.moodScore}
+                  onChange={e => setVitals({ ...vitals, moodScore: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Urinary Calcium */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Urinary Calcium (mg/day)</span>
+                  <span className="text-sky-400 font-bold">{vitals.urinaryCalcium} mg/d</span>
+                </div>
+                <input
+                  type="range"
+                  min="120"
+                  max="360"
+                  step="5"
+                  value={vitals.urinaryCalcium}
+                  onChange={e => setVitals({ ...vitals, urinaryCalcium: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Radiation Rate */}
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                <div className="flex justify-between font-mono mb-1">
+                  <span className="text-slate-300">Radiation Flux (mSv/day)</span>
+                  <span className="text-sky-400 font-bold">{vitals.dailyRadRate} mSv/d</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="6.0"
+                  step="0.1"
+                  value={vitals.dailyRadRate}
+                  onChange={e => setVitals({ ...vitals, dailyRadRate: Number(e.target.value) })}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                onClick={() => setVitals({ ...SCENARIOS[activeScenario].vitals })}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-mono hover:bg-slate-700 cursor-pointer"
+              >
+                Reset to Scenario Default
+              </button>
+              <button
+                onClick={() => {
+                  setIsLogModalOpen(false);
+                  setNotificationBanner('Self-assessment vitals logged. Autonomous countermeasure engine updated.');
+                  setTimeout(() => setNotificationBanner(null), 4000);
+                }}
+                className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs font-mono cursor-pointer"
+              >
+                Save & Recalculate Risk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* MODAL 2: INTERACTIVE GUIDED SELF-EXAM DIAGNOSTIC WORKFLOW         */}
+      {/* ================================================================= */}
+      {isExamModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0F172A] border border-sky-500/40 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-xs font-mono uppercase text-sky-400 block">
+                  AUTONOMOUS CREW MEDICAL DIAGNOSTIC
+                </span>
+                <h3 className="text-base font-bold text-white">{selectedSystem.selfExamTitle}</h3>
+              </div>
+              <button
+                onClick={() => setIsExamModalOpen(false)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {selectedSystem.selfExamSteps.map((step, idx) => {
+                const isDone = idx <= examStepProgress;
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setExamStepProgress(idx)}
+                    className={`p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3 ${
+                      isDone
+                        ? 'bg-sky-500/15 border-sky-400/50 text-white'
+                        : 'bg-slate-900 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <div
+                      className={`w-6 h-6 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${
+                        isDone ? 'bg-sky-400 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {idx + 1}
+                    </div>
+                    <div className="text-xs sm:text-sm leading-relaxed">{step}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-xs font-mono text-slate-400">
+                Step {examStepProgress + 1} of {selectedSystem.selfExamSteps.length}
+              </span>
+              <div className="flex gap-2">
+                {examStepProgress < selectedSystem.selfExamSteps.length - 1 ? (
+                  <button
+                    onClick={() => setExamStepProgress(p => p + 1)}
+                    className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs font-mono cursor-pointer"
+                  >
+                    Next Calibration Step
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsExamModalOpen(false);
+                      setNotificationBanner(`${selectedSystem.shortName} self-exam telemetry verified and calibrated.`);
+                      setTimeout(() => setNotificationBanner(null), 4000);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs font-mono cursor-pointer"
+                  >
+                    Complete & Sync Sensor Data
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
